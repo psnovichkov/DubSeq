@@ -1,0 +1,47 @@
+itnum	type	name
+IT001	stress	Nickel (II) chloride hexahydrate, 1.2mM
+IT002	stress	Cobalt chloride hexahydrate, 0.75mM
+IT003	stress	Cobalt chloride hexahydrate, 1mM
+IT004	stress	copper (II) chloride dihydrate, 2mM
+IT005	stress	copper (II) chloride dihydrate, 5mM
+IT006	stress	sodium fluoride, 50mM
+IT007	stress	sodium fluoride, 100mM
+IT008	stress	sodium fluoride, 200mM
+IT009	stress	Paraquat dichloride, 0.064mg/ml
+IT010	LB	LB
+IT011	stress	Cisplatin, 0.0125mg/ml
+IT012	stress	Zinc sulfate heptahydrate, 0.5mM
+IT013	stress	Zinc sulfate heptahydrate, 1mM
+IT014	stress	Sodium nitrite, 20mM
+IT015	stress	Sodium nitrate, 200mM
+IT016	stress	Sodium nitrate, 300mM
+IT017	stress	Sisomicin sulfate salt, 0.001mg/ml
+IT018	stress	Sisomicin sulfate salt, 0.0025mg/ml
+IT019	stress	Sisomicin sulfate salt, 0.005mg/ml
+IT020	stress	Sodium Chlorite, 0.4mM
+IT021	stress	Sodium Chlorite, 1.25mM
+IT022	stress	Sodium Chloride, 600mM
+IT023	stress	Sodium Chloride, 700mM
+IT024	stress	Benzethonium chloride, 0.01mM
+IT025	stress	Benzalkonium Chloride, 0.004mg/ml
+IT026	stress	Aluminum chloride hydrate, 5mM
+IT027	stress	Aluminum chloride hydrate, 10mM
+IT028	LB	LB
+IT029	stress	Phosphomycin disodium salt, 0.002mg/ml
+IT030	stress	Phosphomycin disodium salt, 0.004mg/ml
+IT031	stress	Phosphomycin disodium salt, 0.015mg/ml
+IT032	stress	Bacitracin, 0.6mg/ml
+IT033	stress	Bacitracin, 0.75mg/ml
+IT034	stress	Bacitracin, 1mg/ml
+IT035	stress	Bacitracin, 1.5mg/ml
+IT036	stress	Fusidic acid sodium salt, 0.02mg/ml
+IT037	stress	Fusidic acid sodium salt, 0.03mg/ml
+IT038	stress	Fusidic acid sodium salt, 0.1mg/ml
+IT039	stress	Fusidic acid sodium salt, 0.25mg/ml
+IT040	stress	Cephalothin sodium salt, 0.01mg/ml
+IT041	stress	Cephalothin sodium salt, 0.08mg/ml
+IT042	stress	MreB Perturbing Compound A22, 0.02mg/ml
+IT043	stress	MreB Perturbing Compound A22, 0.04mg/ml
+IT044	stress	Lomefloxacin hydrochloride, 0.0001mM
+IT045	Time0	Time0
+IT046	Time0	Time0
