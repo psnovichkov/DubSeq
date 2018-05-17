@@ -23,6 +23,11 @@ class Context:
     output_dir = None
     min_time0_read_count = None
 
+    ridge_alpha = None
+    lasso_alpha = None
+    enet_alpha = None
+    enet_l1_ratio = None
+
     @staticmethod
     def build_context(args):
         Context.barseq_layout_fname = args.barseq_layout_fname
@@ -31,6 +36,10 @@ class Context:
         Context.output_dir = args.output
         Context.min_time0_read_count = args.min_time0_read_count
         Context.genes_gff_fname = args.genes_gff_fname
+        Context.ridge_alpha = args.ridge_alpha
+        Context.lasso_alpha = args.lasso_alpha
+        Context.enet_alpha = args.enet_alpha
+        Context.enet_l1_ratio = args.enet_l1_ratio
 
     @staticmethod
     def gscore_base_fname():
@@ -101,6 +110,42 @@ def parse_args():
                         type=int
                         )
 
+    parser.add_argument('--ridge_alpha',
+                        dest='ridge_alpha',
+                        help='''Regularization parameter alpha for the Ridge regression defining 
+                        the amount of regularization in the Ridge objective function:  
+                        ||Ax-y||^2_2 + alpha * ||x||^2_2 ''',
+                        default=1.0,
+                        type=float
+                        )
+
+    parser.add_argument('--lasso_alpha',
+                        dest='lasso_alpha',
+                        help='''Regularization parameter alpha for the Lasso regression defining 
+                        the amount of regularization in the Lasso objective function:  
+                        ||Ax-y||^2_2 + alpha * ||x||_1 ''',
+                        default=3.35,
+                        type=float
+                        )
+
+    parser.add_argument('--enet_alpha',
+                        dest='enet_alpha',
+                        help='''Regularization parameter alpha for the Elastic Net regression defining 
+                        the amount of regularization in the Elastic Net objective function:  
+                        ||Ax-y||^2_2 + alpha * i1_ratio * ||x||_1 + 0.5 * alpha * (1-r1_ratio) * ||x||^2_2  ''',
+                        default=3.62,
+                        type=float
+                        )
+
+    parser.add_argument('--enet_i1_ratio',
+                        dest='enet_l1_ratio',
+                        help='''Regularization parameter l1_ratio for the Elastic Net regression defining 
+                        the amount of regularization in the Elastic Net objective function:  
+                        ||Ax-y||^2_2 + alpha * i1_ratio * ||x||_1 + 0.5 * alpha * (1-r1_ratio) * ||x||^2_2  ''',
+                        default=0.7,
+                        type=float
+                        )
+
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
@@ -114,6 +159,10 @@ def check_args(args):
 
 def main():
     Fitness.MIN_TIME0_READ_COUNT = Context.min_time0_read_count
+    Fitness.RIDGE_PARAM_ALPHA = Context.ridge_alpha
+    Fitness.LASSO_PARAM_ALPHA = Context.lasso_alpha
+    Fitness.ELASTIC_NET_PARAM_ALPHA = Context.enet_alpha
+    Fitness.ELASTIC_NET_PARAM_L1_RATIO = Context.enet_l1_ratio
 
     barseq_layout = BarseqLayout(Context.barseq_layout_fname)
     barseq_layout.save(Context.barseq_layout_out_fname())
@@ -136,14 +185,19 @@ def main():
         gs_mean = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_MEAN)
         gs_nnls = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_C_NNLS)
         gs_ridge = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_RIDGE)
+        gs_lasso = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_LASSO)
         gs_enet = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_ELASTIC_NET)
 
         gscore_fname = os.path.join(
             Context.output_dir, item.itnum + '.gscore.tsv')
         Fitness.save_gscores(gscore_fname,
-                             [Fitness.SCORE_TYPE_MEAN, Fitness.SCORE_TYPE_C_NNLS, Fitness.SCORE_TYPE_RIDGE,
-                                 Fitness.SCORE_TYPE_ELASTIC_NET],
-                             [gs_mean, gs_nnls, gs_ridge, gs_enet])
+                             [Fitness.SCORE_TYPE_MEAN,
+                              Fitness.SCORE_TYPE_C_NNLS,
+                              Fitness.SCORE_TYPE_RIDGE,
+                              Fitness.SCORE_TYPE_LASSO,
+                              Fitness.SCORE_TYPE_ELASTIC_NET
+                              ],
+                             [gs_mean, gs_nnls, gs_ridge, gs_lasso, gs_enet])
 
 
 def init_logger():

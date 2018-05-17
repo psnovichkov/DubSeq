@@ -5,6 +5,7 @@ import json
 import numpy as np
 import pandas as pd
 from scipy import stats
+from scipy import sparse
 from scipy.stats import poisson
 from scipy.optimize import nnls
 from statistics import median
@@ -264,6 +265,16 @@ class Fitness:
     SCORE_TYPE_ELASTIC_NET = 5
     SCORE_TYPE_NAMES = ['mean', 'nnls', 'cnnls', 'ridge', 'lasso', 'enet']
 
+    SPARSE_REGRESSION_MATRIX = {
+        SCORE_TYPE_MEAN: False,
+        SCORE_TYPE_NNLS: False,
+        SCORE_TYPE_C_NNLS: False,
+
+        SCORE_TYPE_RIDGE: True,
+        SCORE_TYPE_LASSO: True,
+        SCORE_TYPE_ELASTIC_NET: True
+    }
+
     MIN_TIME0_READ_COUNT = 10
     CONDITIONS = {}
     BARCODE_2_INDEX = {}
@@ -279,16 +290,17 @@ class Fitness:
 
 # scoreType = SCORE_TYPE_RIDGE
 # GENE_SCORES_DIR = ROOT_DIR + '/narrative_data/data/barseq/gene_scores/ridge_1e-3'
-    RIDGE_PARAM_ALPHA = 0.001
+    RIDGE_PARAM_ALPHA = 1
 
 
 # scoreType = SCORE_TYPE_LASSO
 # GENE_SCORES_DIR = ROOT_DIR + '/narrative_data/data/barseq/gene_scores/lasso_5e-5'
-    LASSO_PARAM_ALPHA = 0.00005
+    LASSO_PARAM_ALPHA = 1
 
 # scoreType = SCORE_TYPE_ELASTIC_NET
-    ELASTIC_NET_PARAM_A = 0.0005
-    ELASTIC_NET_PARAM_B = 0.0001
+    ELASTIC_NET_PARAM_ALPHA = 1
+    ELASTIC_NET_PARAM_L1_RATIO = 0.5
+
 # GENE_SCORES_DIR = ROOT_DIR + '/narrative_data/data/barseq/gene_scores/enet_4e-5_1e-7'
 
 
@@ -1012,115 +1024,296 @@ class Fitness:
         return scores
 
     @staticmethod
+    def genes_2_sparse_regression_matrix(fscores):
+        reg_g_indices = []
+        reg_f_indices = []
+        reg_fg_values = []
+        reg_fg_matrix = None
+        reg_f_scores = []
+
+        # define total list of barcode indices
+        b_indices_hash = {}
+        b_index_offsets = [-1] * len(fscores)
+        for gene in Fitness.GENES:
+            for b_index in gene['barcodeIndeces']:
+                b_indices_hash[str(b_index)] = b_index
+
+        for b_index in b_indices_hash.values():
+            b_index_offsets[b_index] = len(reg_f_scores)
+            for i in range(Fitness.BARCODE_REPLICATES[b_index]):
+                reg_f_scores.append(fscores[b_index])
+                # reg_f_indices.append(b_index)
+
+        # # build a subset of barcode (fragemtn) scores corresponding to bIndeces
+        # for f_index in reg_f_indices:
+        #     reg_f_scores.append(fscores[f_index])
+
+        # build matrix of presence/absence
+        for g_index, gene in enumerate(Fitness.GENES):
+            for b_index in gene['barcodeIndeces']:
+                b_index_offset = b_index_offsets[b_index]
+                for i in range(Fitness.BARCODE_REPLICATES[b_index]):
+                    reg_g_indices.append(g_index)
+                    reg_f_indices.append(b_index_offset + i)
+                    reg_fg_values.append(1)
+
+        reg_fg_matrix = sparse.coo_matrix(
+            (reg_fg_values, (reg_f_indices, reg_g_indices)))
+
+        reg_g_indices = np.array(reg_g_indices)
+        reg_f_indices = np.array(reg_f_indices)
+        reg_f_scores = np.array(reg_f_scores)
+
+        return (reg_f_scores, reg_fg_matrix)
+
+    @staticmethod
+    def genes_2_deep_regression_matrix(gene_indices, fscores):
+
+        # fragments (barcodes) indices. It may have multiple copies of
+        # the same index (becuase of bootstrap)
+        reg_f_indices = []
+
+        # indexes of genes to be used in the regression
+        reg_g_indices = []
+
+        # array of fragment scores
+        reg_f_scores = []
+
+        # 2d array (fragments vs genes) of ones and zeros : 1 means that a given fragment
+        # covers a given gene completely
+        reg_fg_matrix = []
+
+        # define total list of barcode indices
+        b_indices_hash = {}
+        for g_index in gene_indices:
+            for b_index in Fitness.GENES[g_index]['barcodeIndeces']:
+                b_indices_hash[str(b_index)] = b_index
+
+        for b_index in b_indices_hash.values():
+            for i in range(Fitness.BARCODE_REPLICATES[b_index]):
+                reg_f_indices.append(b_index)
+
+        # build a subset of barcode (fragemtn) scores corresponding to bIndeces
+        for f_index in reg_f_indices:
+            reg_f_scores.append(fscores[f_index])
+
+        # build matrix of presence/absence
+        for g_index in gene_indices:
+            row = [0] * len(reg_f_indices)
+            row_fragment_count = 0
+            for i, b_index1 in enumerate(reg_f_indices):
+                for b_index2 in Fitness.GENES[g_index]['barcodeIndeces']:
+                    if b_index1 == b_index2:
+                        row[i] = 1
+                        row_fragment_count += 1
+            if row_fragment_count > 0:
+                reg_fg_matrix.append(row)
+                reg_g_indices.append(g_index)
+
+        # convert to numpy array
+        reg_f_indices = np.array(reg_f_indices)
+        reg_g_indices = np.array(reg_g_indices)
+
+        reg_f_scores = np.array(reg_f_scores)
+        reg_fg_matrix = np.array(reg_fg_matrix)
+        reg_fg_matrix = reg_fg_matrix.T
+
+        return (reg_f_indices, reg_g_indices, reg_f_scores, reg_fg_matrix)
+
+    @staticmethod
     def buildGeneScores(fscores, scoreType):
-        geneScores = [0] * len(Fitness.GENES)
+        print('\t doing: ' + Fitness.SCORE_TYPE_NAMES[scoreType])
+        gscores = [0] * len(Fitness.GENES)
 
-        for genomeSegment in Fitness.GENOME_SEGMENTS:
+        if Fitness.SPARSE_REGRESSION_MATRIX[scoreType]:
+            (reg_f_scores, reg_fg_matrix) = Fitness.genes_2_sparse_regression_matrix(fscores)
+            sample_n = len(reg_f_scores)
+            estimator = None
+            if scoreType == Fitness.SCORE_TYPE_RIDGE:
+                alpha = Fitness.RIDGE_PARAM_ALPHA
+                estimator = Ridge(
+                    alpha=alpha, fit_intercept=False, solver='lsqr')
+            elif scoreType == Fitness.SCORE_TYPE_LASSO:
+                alpha = Fitness.LASSO_PARAM_ALPHA / sample_n / 2
+                estimator = Lasso(alpha=alpha, fit_intercept=False)
+            elif scoreType == Fitness.SCORE_TYPE_ELASTIC_NET:
+                alpha = Fitness.ELASTIC_NET_PARAM_ALPHA / sample_n / 2
+                l1_ratio = Fitness.ELASTIC_NET_PARAM_L1_RATIO
+                estimator = ElasticNet(
+                    alpha=alpha, l1_ratio=l1_ratio, fit_intercept=False)
 
-            # v - array of fragment scores
-            v = []
-            # A - 2d array of presence/absence
-            A = []
+            print('\t\t', reg_fg_matrix.shape, reg_f_scores.shape)
+            print('\t\t estimator:', estimator)
+            estimator.fit(reg_fg_matrix, reg_f_scores)
+            for i, gscore in enumerate(estimator.coef_):
+                gscores[i] = gscore
 
-            geneIndeces = list(genomeSegment['geneIndeces'])
+        else:
+            for genome_segment in Fitness.GENOME_SEGMENTS:
+                gene_indices = list(genome_segment['geneIndeces'])
+                (reg_f_indices, reg_g_indices, reg_f_scores, reg_fg_matrix) = \
+                    Fitness.genes_2_deep_regression_matrix(
+                        gene_indices, fscores)
 
-            # define total list of barcodeIndeces
-            bIndeces = []
-            bIndecesHash = {}
-            for gIndex in geneIndeces:
-                for bIndex in Fitness.GENES[gIndex]['barcodeIndeces']:
-                    bIndecesHash[str(bIndex)] = bIndex
+                # print('\t', reg_f_indices.shape, reg_g_indices.shape,
+                #       reg_f_scores.shape, reg_fg_matrix.shape)
 
-            for key in bIndecesHash:
-                bIndex = bIndecesHash[key]
-                for i in range(Fitness.BARCODE_REPLICATES[bIndex]):
-                    bIndeces.append(bIndex)
-
-            # Review gene indeces (remove thouse which are not coverd by bIndeces)
-            gCount = len(geneIndeces)
-            for i in range(gCount)[::-1]:
-                gIndex = geneIndeces[i]
-                if len(set(Fitness.GENES[gIndex]['barcodeIndeces']).intersection(bIndeces)) == 0:
-                    del geneIndeces[i]
-
-            if len(geneIndeces) > 0 and len(bIndeces) > 0:
-                # build a subset of barcode (fragemtn) scores corresponding to bIndeces
-                for bIndex in bIndeces:
-                    v.append(fscores[bIndex])
-
-                # build matrix of presence/absence
-                for gIndex in geneIndeces:
-                    row = [0] * len(bIndeces)
-                    for vIndex, bIndex1 in enumerate(bIndeces):
-                        for bIndex2 in Fitness.GENES[gIndex]['barcodeIndeces']:
-                            if bIndex1 == bIndex2:
-                                row[vIndex] = 1
-                    A.append(row)
-
-                # convert to numpy array
-                v = np.array(v)
-                A = np.array(A)
-                A = A.T
+                if reg_g_indices.shape[0] == 0 and reg_f_indices.shape[0] == 0:
+                    continue
 
                 scores = []
                 if scoreType == Fitness.SCORE_TYPE_MEAN:
-                    for gIndex in range(A.shape[1]):
-                        score = 0
-                        n = 0
-                        for bIndex in range(A.shape[0]):
-                            if A[bIndex, gIndex] == 1:
-                                score += v[bIndex]
-                                n += 1
-                        if n > 0:
-                            score /= n
-                        scores.append(score)
+
+                    # for g_index in range(reg_fg_matrix.shape[1]):
+                    #     score = 0
+                    #     n = 0
+                    #     for b_index in range(reg_fg_matrix.shape[0]):
+                    #         if reg_fg_matrix[b_index, g_index] == 1:
+                    #             score += reg_f_scores[b_index]
+                    #             n += 1
+                    #     if n > 0:
+                    #         score /= n
+                    #     scores.append(score)
+
+                    # max(x,1) to avoid division by 0
+                    f_counts = np.array([max(x, 1)
+                                         for x in np.sum(reg_fg_matrix, axis=0)])
+                    scores = np.dot(reg_f_scores, reg_fg_matrix) / f_counts
+
                 elif scoreType == Fitness.SCORE_TYPE_NNLS:
-                    x = nnls(A, v)
+                    x = nnls(reg_fg_matrix, reg_f_scores)
                     scores = x[0]
                 elif scoreType == Fitness.SCORE_TYPE_C_NNLS:
-                    x = nnls(A, v)
-                    scoresDirect = x[0]
+                    x = nnls(reg_fg_matrix, reg_f_scores)
+                    scores_direct = x[0]
 
-                    x = nnls(A, v * (-1))
-                    scoresReverse = x[0]
-                    for i, scoreDirect in enumerate(scoresDirect):
-                        scoreReverse = -scoresReverse[i]
+                    x = nnls(reg_fg_matrix, reg_f_scores * (-1))
+                    scores_reverse = x[0]
+                    for i, score_direct in enumerate(scores_direct):
+                        score_reverse = -scores_reverse[i]
                         score = 0
-                        if scoreDirect != 0 and scoreReverse == 0:
-                            score = scoreDirect
-                        elif scoreDirect == 0 and scoreReverse != 0:
-                            score = scoreReverse
+                        if score_direct != 0 and score_reverse == 0:
+                            score = score_direct
+                        elif score_direct == 0 and score_reverse != 0:
+                            score = score_reverse
                         scores.append(score)
 
-                elif scoreType == Fitness.SCORE_TYPE_ELASTIC_NET:
-                    # alpha = a + b and l1_ratio = a / (a + b)
-                    # a * L1 + b * L2
+                for i, gscore in enumerate(scores):
+                    g_index = reg_g_indices[i]
+                    gscores[g_index] = gscore
 
-                    alpha = Fitness.ELASTIC_NET_PARAM_A + Fitness.ELASTIC_NET_PARAM_B
-                    l1_ratio = Fitness.ELASTIC_NET_PARAM_A / alpha
-                    estimator = ElasticNet(
-                        alpha=alpha, l1_ratio=l1_ratio, normalize=True)
-                    estimator.fit(A, v)
-                    scores = estimator.coef_
+        return gscores
 
-                elif scoreType == Fitness.SCORE_TYPE_LASSO:
-                    estimator = Lasso(
-                        alpha=Fitness.LASSO_PARAM_ALPHA, normalize=True)
-                    estimator.fit(A, v)
-                    scores = estimator.coef_
+    # @staticmethod
+    # def _buildGeneScores(fscores, scoreType):
+    #     geneScores = [0] * len(Fitness.GENES)
 
-                elif scoreType == Fitness.SCORE_TYPE_RIDGE:
-                    estimator = Ridge(
-                        alpha=Fitness.RIDGE_PARAM_ALPHA, normalize=True, solver='lsqr')
-                    estimator.fit(A, v)
-                    scores = estimator.coef_
+    #     for genomeSegment in Fitness.GENOME_SEGMENTS:
 
-                for i, geneScore in enumerate(scores):
-                    gIndex = geneIndeces[i]
-                    geneScores[gIndex] = geneScore
+    #         # v - array of fragment scores
+    #         v = []
+    #         # A - 2d array of presence/absence
+    #         A = []
 
-    #     print 'buildGeneScores: Done!'
-        return geneScores
+    #         geneIndeces = list(genomeSegment['geneIndeces'])
+
+    #         # define total list of barcodeIndeces
+    #         bIndeces = []
+    #         bIndecesHash = {}
+    #         for gIndex in geneIndeces:
+    #             for bIndex in Fitness.GENES[gIndex]['barcodeIndeces']:
+    #                 bIndecesHash[str(bIndex)] = bIndex
+
+    #         for key in bIndecesHash:
+    #             bIndex = bIndecesHash[key]
+    #             for i in range(Fitness.BARCODE_REPLICATES[bIndex]):
+    #                 bIndeces.append(bIndex)
+
+    #         # Review gene indeces (remove thouse which are not coverd by bIndeces)
+    #         gCount = len(geneIndeces)
+    #         for i in range(gCount)[::-1]:
+    #             gIndex = geneIndeces[i]
+    #             if len(set(Fitness.GENES[gIndex]['barcodeIndeces']).intersection(bIndeces)) == 0:
+    #                 del geneIndeces[i]
+
+    #         if len(geneIndeces) > 0 and len(bIndeces) > 0:
+    #             # build a subset of barcode (fragemtn) scores corresponding to bIndeces
+    #             for bIndex in bIndeces:
+    #                 v.append(fscores[bIndex])
+
+    #             # build matrix of presence/absence
+    #             for gIndex in geneIndeces:
+    #                 row = [0] * len(bIndeces)
+    #                 for vIndex, bIndex1 in enumerate(bIndeces):
+    #                     for bIndex2 in Fitness.GENES[gIndex]['barcodeIndeces']:
+    #                         if bIndex1 == bIndex2:
+    #                             row[vIndex] = 1
+    #                 A.append(row)
+
+    #             # convert to numpy array
+    #             v = np.array(v)
+    #             A = np.array(A)
+    #             A = A.T
+
+    #             scores = []
+    #             if scoreType == Fitness.SCORE_TYPE_MEAN:
+    #                 for gIndex in range(A.shape[1]):
+    #                     score = 0
+    #                     n = 0
+    #                     for bIndex in range(A.shape[0]):
+    #                         if A[bIndex, gIndex] == 1:
+    #                             score += v[bIndex]
+    #                             n += 1
+    #                     if n > 0:
+    #                         score /= n
+    #                     scores.append(score)
+    #             elif scoreType == Fitness.SCORE_TYPE_NNLS:
+    #                 x = nnls(A, v)
+    #                 scores = x[0]
+    #             elif scoreType == Fitness.SCORE_TYPE_C_NNLS:
+    #                 x = nnls(A, v)
+    #                 scoresDirect = x[0]
+
+    #                 x = nnls(A, v * (-1))
+    #                 scoresReverse = x[0]
+    #                 for i, scoreDirect in enumerate(scoresDirect):
+    #                     scoreReverse = -scoresReverse[i]
+    #                     score = 0
+    #                     if scoreDirect != 0 and scoreReverse == 0:
+    #                         score = scoreDirect
+    #                     elif scoreDirect == 0 and scoreReverse != 0:
+    #                         score = scoreReverse
+    #                     scores.append(score)
+
+    #             elif scoreType == Fitness.SCORE_TYPE_ELASTIC_NET:
+    #                 # alpha = a + b and l1_ratio = a / (a + b)
+    #                 # a * L1 + b * L2
+
+    #                 alpha = Fitness.ELASTIC_NET_PARAM_A + Fitness.ELASTIC_NET_PARAM_B
+    #                 l1_ratio = Fitness.ELASTIC_NET_PARAM_A / alpha
+    #                 estimator = ElasticNet(
+    #                     alpha=alpha, l1_ratio=l1_ratio, normalize=True)
+    #                 estimator.fit(A, v)
+    #                 scores = estimator.coef_
+
+    #             elif scoreType == Fitness.SCORE_TYPE_LASSO:
+    #                 estimator = Lasso(
+    #                     alpha=Fitness.LASSO_PARAM_ALPHA, normalize=True)
+    #                 estimator.fit(A, v)
+    #                 scores = estimator.coef_
+
+    #             elif scoreType == Fitness.SCORE_TYPE_RIDGE:
+    #                 estimator = Ridge(
+    #                     alpha=Fitness.RIDGE_PARAM_ALPHA, normalize=True, solver='lsqr')
+    #                 estimator.fit(A, v)
+    #                 scores = estimator.coef_
+
+    #             for i, geneScore in enumerate(scores):
+    #                 gIndex = geneIndeces[i]
+    #                 geneScores[gIndex] = geneScore
+
+    # #     print 'buildGeneScores: Done!'
+    #     return geneScores
 
     @staticmethod
     def buildPoissonNoisedSample(sample):
