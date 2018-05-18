@@ -16,22 +16,93 @@ class DubSeqViewer:
         self.__gscore_base_df = pd.read_csv(
             os.path.join(gscore_dir, 'gscore_base.tsv'), sep='\t')
 
+        self.__browse_mode = 'gbrowse'
+        self.__browse_mode_params = {
+            'gbrowse': {
+                'min_fscore': -5,
+                'max_fscore': 20,
+                'gene_y': 18,
+                'plot_width': 15,
+                'plot_height': 7,
+                'plot_grid': True
+            },
+            'fbrowse': {
+                'min_fscore': -5,
+                'max_fscore': 20,
+                'gene_y': 18,
+                'plot_width': 15,
+                'plot_height': 7,
+                'plot_grid': True
+            },
+            'landscape': {
+                'min_fscore': -1.5,
+                'max_fscore': 3,
+                'gene_y': 1.5,
+                'plot_width': 15,
+                'plot_height': 2,
+                'plot_grid': False
+            }
+        }
+
+        self.__color_model = 'gb'
+        self.__color_model_params = {
+            'gb': {
+                'fr_covered_color': '#00FF00',
+                'fr_non_covered_color': '#AAAAAA',
+                'cur_gene_color': '#FF0000',
+                'gene_color': '#000000',
+                'gene_score_color': '#FF0000'
+            }
+        }
+
+        self.__score_type = 'score_cnnls'
         self.__window_size = 14000
-        self.__min_fscore = -5
-        self.__max_fscore = 20
-        self.__gene_y = 18
         self.__gene_x_offset = 200
 
         self.__itnum = None
         self.__fscores = None
         self.__gscores = None
         self.__cur_gene_index = 0
-        self.__score_type = 'score_cnnls'
-        self.__fr_covered_color = '#00FF00'
-        self.__fr_non_covered_color = '#AAAAAA'
-        self.__cur_gene_color = '#FF0000'
-        self.__gene_color = '#000000'
-        self.__gene_score_color = '#FF0000'
+
+    def __getattr__(self, name):
+        if name in self.__browse_mode_params[self.__browse_mode]:
+            return self.__browse_mode_params[self.__browse_mode][name]
+        elif name in self.__color_model_params[self.__color_model]:
+            return self.__color_model_params[self.__color_model][name]
+
+        raise AttributeError("DubSeq Viewer has no attribute '%s'" % name)
+
+    @property
+    def fscore_base(self):
+        return self.__fscore_base_df
+
+    @property
+    def gscore_base(self):
+        return self.__gscore_base_df
+
+    @property
+    def braseq_layout(self):
+        return self.__braseq_layout_df
+
+    @property
+    def gscore_dir(self):
+        return self.__gscore_dir
+
+    @property
+    def browse_mode(self):
+        return self.__browse_mode
+
+    def set_browse_mode(self, mode):
+        if mode not in self.__browse_mode_params:
+            raise AttributeError('%s - wrong browse mode. Available modes are: %s'
+                                 % (mode, list(self.__browse_mode_params.keys())))
+        self.__browse_mode = mode
+
+    def set_color_model(self, cm):
+        if cm not in self.__color_model_params:
+            raise AttributeError('%s - wrong color model. Available models are: %s'
+                                 % (cm, list(self.__color_model_params.keys())))
+        self.__color_model = cm
 
     def set_score_type(self, score_type):
         self.__score_type = score_type
@@ -133,22 +204,6 @@ class DubSeqViewer:
             d = d[d['name'].str.find(name) != -1]
         return d
 
-    @property
-    def fscore_base(self):
-        return self.__fscore_base_df
-
-    @property
-    def gscore_base(self):
-        return self.__gscore_base_df
-
-    @property
-    def braseq_layout(self):
-        return self.__braseq_layout_df
-
-    @property
-    def gscore_dir(self):
-        return self.__gscore_dir
-
     def show_next_gene(self):
         self.next_gene()
         self.show()
@@ -169,80 +224,118 @@ class DubSeqViewer:
         self.zoom_out()
         self.show()
 
-    def show(self):
+    def show(self, fname=None):
         cur_gene = self.current_gene()
 
         (window_from, widnow_to) = self.window()
-        genes = self.genes(pos_from=window_from, pos_to=widnow_to)
-        fscores = self.fscores(pos_from=window_from, pos_to=widnow_to)
 
-        fig = plt.figure(figsize=(15, 7))
+        fig = plt.figure(figsize=(self.plot_width, self.plot_height))
         ax = fig.add_subplot(111)
-#         ax.set_title('DubSeq Viewer: %s' % self.current_condition()['name'], fontsize=15)
-        ax.set_title(self.current_condition()['name'], fontsize=15)
-        ax.grid(True)
 
         # Do genes
+        genes = self.genes(pos_from=window_from, pos_to=widnow_to)
         for _, gene in genes.iterrows():
-            color = self.__cur_gene_color  \
+            color = self.cur_gene_color  \
                 if gene['gene_index'] == cur_gene['index'] \
-                else self.__gene_color
+                else self.gene_color
 
             arrowstyle = '->' if gene.strand == '+' else '<-'
-            ax.annotate(
-                gene['name'],
-                xy=(gene.pos_from + (gene.pos_to - gene.pos_from) / 2, 18),
-                fontsize=10,
-                xytext=(-10, 20), textcoords='offset points', ha='left', va='top',
-            )
+            if self.browse_mode != 'landscape' or gene['gene_index'] == cur_gene['index']:
+                ax.annotate(
+                    gene['name'],
+                    xy=(gene.pos_from + (gene.pos_to -
+                                         gene.pos_from) / 2, self.gene_y),
+                    fontsize=10,
+                    xytext=(-10, 20), textcoords='offset points', ha='left', va='top',
+                )
             ax.annotate(
                 '',
-                xy=(gene.pos_to, 18),
-                xytext=(gene.pos_from, 18),
+                xy=(gene.pos_to, self.gene_y),
+                xytext=(gene.pos_from, self.gene_y),
                 fontsize=20,
                 arrowprops=dict(arrowstyle=arrowstyle, color=color)
             )
 
         # Do fragments
-        for _, fscore in fscores.iterrows():
-            color = self.__fr_covered_color \
-                if fscore.pos_from <= cur_gene.pos_from and fscore.pos_to >= cur_gene.pos_to \
-                else self.__fr_non_covered_color
+        y_min = 0
+        y_max = 0
+        x_min = 0
+        x_max = 0
+        if self.browse_mode == 'landscape':
+            fragments = self.fragments(pos_from=window_from, pos_to=widnow_to)
+            y = self.min_fscore * 2 / 3
+            y_range = np.abs(y * 2)
+            y_min = y
+            y_max = y + y_range
+            x_min = fragments.pos_from.min()
+            x_max = fragments.pos_to.max()
 
-            ax.annotate(
-                '',
-                xy=(fscore.pos_to, fscore.score),
-                xytext=(fscore.pos_from, fscore.score),
-                fontsize=20,
-                arrowprops=dict(arrowstyle='-', color=color)
-            )
+            for _, fragment in fragments.iterrows():
 
-        x_min = min(genes.pos_from.min(), fscores.pos_from.min()) - \
-            self.__gene_x_offset
-        x_max = max(genes.pos_to.max(),   fscores.pos_to.max()) + \
-            self.__gene_x_offset
-        y_min = min(self.__min_fscore, fscores.score.min())
-        y_max = max(self.__max_fscore, fscores.score.max())
+                color = self.fr_non_covered_color
+                y += y_range / fragments.shape[0]
+                ax.annotate(
+                    '',
+                    xy=(fragment.pos_to, y),
+                    xytext=(fragment.pos_from, y),
+                    fontsize=20,
+                    arrowprops=dict(arrowstyle='-', color=color)
+                )
+        else:
+            fscores = self.fscores(pos_from=window_from, pos_to=widnow_to)
+            y_min = fscores.score.min()
+            y_max = fscores.score.max()
+            x_min = fscores.pos_from.min()
+            x_max = fscores.pos_to.max()
+
+            for _, fscore in fscores.iterrows():
+                color = self.fr_covered_color \
+                    if fscore.pos_from <= cur_gene.pos_from and fscore.pos_to >= cur_gene.pos_to \
+                    else self.fr_non_covered_color
+                ax.annotate(
+                    '',
+                    xy=(fscore.pos_to, fscore.score),
+                    xytext=(fscore.pos_from, fscore.score),
+                    fontsize=20,
+                    arrowprops=dict(arrowstyle='-', color=color)
+                )
+
+        x_min = min(genes.pos_from.min(), x_min) - self.__gene_x_offset
+        x_max = max(genes.pos_to.max(), x_max) + self.__gene_x_offset
+        y_min = min(self.min_fscore, y_min)
+        y_max = max(self.max_fscore, y_max)
 
         # Do gene score
-        gscore = cur_gene[self.__score_type]
+        if self.browse_mode == 'gbrowse':
+            gscore = cur_gene[self.__score_type]
 
-        ax.annotate(
-            '%s = %.2f' % (cur_gene['name'], gscore),
-            xy=(x_max - self.__gene_x_offset, gscore),
-            fontsize=10,
-            xytext=(-70, 20), textcoords='offset points', ha='left', va='top', color=self.__gene_score_color
-        )
-        ax.annotate(
-            '',
-            xy=(x_min + self.__gene_x_offset, gscore),
-            xytext=(x_max - self.__gene_x_offset, gscore),
-            fontsize=20,
-            arrowprops=dict(arrowstyle='-', color=self.__gene_score_color)
-        )
+            ax.annotate(
+                '%s = %.2f' % (cur_gene['name'], gscore),
+                xy=(x_max - self.__gene_x_offset, gscore),
+                fontsize=10,
+                xytext=(-70, 20), textcoords='offset points', ha='left', va='top', color=self.gene_score_color
+            )
+            ax.annotate(
+                '',
+                xy=(x_min + self.__gene_x_offset, gscore),
+                xytext=(x_max - self.__gene_x_offset, gscore),
+                fontsize=20,
+                arrowprops=dict(arrowstyle='-', color=self.gene_score_color)
+            )
 
+        if self.browse_mode == 'landscape':
+            plt.ylabel('')
+            ax.set_yticklabels([])
+        else:
+            ax.set_title(self.current_condition()['name'], fontsize=15)
+            plt.ylabel('fitness score')
+
+        ax.grid(self.plot_grid)
         ax.axis([x_min, x_max, y_min, y_max])
         ax.get_xaxis().set_major_formatter(
             ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
-        plt.ylabel('fitness score')
-        plt.show()
+
+        if fname is not None:
+            plt.savefig(fname, type='pdf', bbox_inches='tight')
+        else:
+            plt.show()
