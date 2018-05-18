@@ -99,8 +99,6 @@ class BarseqLayout:
     def __to_items(self, df):
         items = []
         for _, row in df.iterrows():
-            # print(row['name'])
-            # items.append(BarseqLayoutItem(row.itnum, row.type, row.name))
             items.append(BarseqLayoutItem(row.itnum, row.type, row['name']))
         return items
 
@@ -302,7 +300,10 @@ class Fitness:
         t0Indeces = Fitness.getTimeZeroIndeces()
 
         # Load data
+        print("loadBPAG:...",  end='', flush=True)
         Fitness.loadBPAG(bpag_fname)
+        print('Done!')
+
         Fitness.loadCounts()
         Fitness.buildREF_TIME0(t0Indeces)
         Fitness.cleanBARCODE_COUNTS(t0Indeces)
@@ -497,7 +498,6 @@ class Fitness:
 
     @staticmethod
     def loadBPAG(bpag_fname):
-        print("loadBPAG:...",  end='', flush=True)
         del Fitness.BARCODE_COUNTS[:]
         df = pd.read_csv(bpag_fname, sep='\t')
 
@@ -515,25 +515,7 @@ class Fitness:
                 "time0": 0,
                 "counts": [0] * len(Fitness.CONDITIONS)
             })
-
-            # with open(bpag_fname, 'r') as f:
-            #     for line in f:
-            #         vals = line.split("\t")
-            #         barcodes = vals[0].split("=")
-            #         barcode = barcodes[1]
-            #         Fitness.BARCODE_COUNTS.append({
-            #             'pairBarcodeUp': barcodes[0],
-            #             'pairBarcodeDn': barcodes[1],
-
-            #             "barcode": barcode,
-            #             "contigId": vals[3],
-            #             "posFrom": int(vals[4]),
-            #             "posTo": int(vals[5]),
-            #             "time0": 0,
-            #             "counts": [0] * len(Fitness.CONDITIONS)
-            #         })
         Fitness.updateBARCODE_INDICES()
-        print("Done!")
 
     @staticmethod
     def updateBARCODE_INDICES():
@@ -544,14 +526,12 @@ class Fitness:
             Fitness.BARCODE_2_INDEX[br['barcode']] = index
             Fitness.BARCODE_INDICES.append(index)
             Fitness.BARCODE_REPLICATES.append(1)
-    #     print "\t from updateBARCODE_INDICES", len(BARCODE_2_INDEX), len(BARCODE_INDICES), len(BARCODE_REPLICATES)
 
     @staticmethod
     def loadCounts():
-        print("loadCounts:...", end='', flush=True)
         for itnum in Fitness.CONDITIONS:
             it = Fitness.CONDITIONS[itnum]
-            print('Doing file: ', it['file'])
+            print('\t loading: ', it['file'])
             df = pd.read_csv(it['file'], sep='\t')
             for _, row in df.iterrows():
                 if row.sim_recommended != '+':
@@ -562,17 +542,6 @@ class Fitness:
                     barcodeIndex = Fitness.BARCODE_2_INDEX[barcode]
                     itIndex = it['index']
                     Fitness.BARCODE_COUNTS[barcodeIndex]['counts'][itIndex] = count
-
-            # with open(it['file'], 'r') as f:
-            #     for line in f:
-            #         vals = line.split('\t')
-            #         barcode = vals[0]
-            #         count = int(vals[1])
-            #         if barcode in Fitness.BARCODE_2_INDEX:
-            #             barcodeIndex = Fitness.BARCODE_2_INDEX[barcode]
-            #             itIndex = it['index']
-            #             Fitness.BARCODE_COUNTS[barcodeIndex]['counts'][itIndex] = count
-        print("Done!")
 
     @staticmethod
     def cleanBARCODE_COUNTS(time0Indeces):
@@ -590,10 +559,6 @@ class Fitness:
                 delCount += 1
 
         Fitness.updateBARCODE_INDICES()
-        # print "\tLen before = ", len0
-        # print "\tLen after = ", len(BARCODE_COUNTS)
-        # print "\tDel count = ", delCount
-        # print "cleanBARCODE_COUNTS: Done!"
 
     @staticmethod
     def loadGenes(genes_gff_fname):
@@ -719,7 +684,6 @@ class Fitness:
                     })
 
         Fitness.GENES.sort(key=lambda x: x['posFrom'], reverse=False)
-        print('Load genes: Done!')
 
     @staticmethod
     def _loadGenes(genes_gff_fname):
@@ -792,14 +756,11 @@ class Fitness:
 
     @staticmethod
     def associateGenesWithBarcodes():
-        print("associateGenesWithBarcodes:...", end='', flush=True)
         for bIndex, bcode in enumerate(Fitness.BARCODE_COUNTS):
             for gene in Fitness.GENES:
                 if bcode['contigId'] == gene['contigId']:
                     if bcode['posFrom'] <= gene['posFrom'] and bcode['posTo'] >= gene['posTo']:
                         gene['barcodeIndeces'].append(bIndex)
-
-        print("Done!")
 
     # Delete genes that do not have associated barcodes
     @staticmethod
@@ -817,7 +778,6 @@ class Fitness:
     #######################
     @staticmethod
     def buildGENOME_SEGMENTS():
-        print("buildGENOME_SEGMENTS:... ", end='', flush=True)
         del Fitness.GENOME_SEGMENTS[:]
 
         prevGene = None
@@ -845,11 +805,9 @@ class Fitness:
             Fitness.GENOME_SEGMENTS.append({
                 'geneIndeces': geneIndeces
             })
-        print('Done!')
 
     @staticmethod
     def buildREF_TIME0(time0Indeces):
-        print("buildREF_TIME0:...", end='', flush=True)
         for bIndex in Fitness.BARCODE_INDICES:
             row = Fitness.BARCODE_COUNTS[bIndex]
             counts = row['counts']
@@ -857,7 +815,6 @@ class Fitness:
             for t0Index in time0Indeces:
                 total += counts[t0Index]
             Fitness.BARCODE_COUNTS[bIndex]['time0'] = total
-        print("Done!")
 
     # No needs to adjust by total...
     @staticmethod
@@ -896,11 +853,6 @@ class Fitness:
             b_index_offsets[b_index] = len(reg_f_scores)
             for i in range(Fitness.BARCODE_REPLICATES[b_index]):
                 reg_f_scores.append(fscores[b_index])
-                # reg_f_indices.append(b_index)
-
-        # # build a subset of barcode (fragemtn) scores corresponding to bIndeces
-        # for f_index in reg_f_indices:
-        #     reg_f_scores.append(fscores[f_index])
 
         # build matrix of presence/absence
         for g_index, gene in enumerate(Fitness.GENES):
@@ -996,8 +948,6 @@ class Fitness:
                 estimator = ElasticNet(
                     alpha=alpha, l1_ratio=l1_ratio, fit_intercept=False)
 
-            print('\t\t', reg_fg_matrix.shape, reg_f_scores.shape)
-            print('\t\t estimator:', estimator)
             estimator.fit(reg_fg_matrix, reg_f_scores)
             for i, gscore in enumerate(estimator.coef_):
                 gscores[i] = gscore
@@ -1522,3 +1472,30 @@ class Fitness:
         #                 'index': 0,
         #                 'barcodeIndeces': []
         #             })
+
+            # with open(it['file'], 'r') as f:
+            #     for line in f:
+            #         vals = line.split('\t')
+            #         barcode = vals[0]
+            #         count = int(vals[1])
+            #         if barcode in Fitness.BARCODE_2_INDEX:
+            #             barcodeIndex = Fitness.BARCODE_2_INDEX[barcode]
+            #             itIndex = it['index']
+            #             Fitness.BARCODE_COUNTS[barcodeIndex]['counts'][itIndex] = count
+
+            # with open(bpag_fname, 'r') as f:
+            #     for line in f:
+            #         vals = line.split("\t")
+            #         barcodes = vals[0].split("=")
+            #         barcode = barcodes[1]
+            #         Fitness.BARCODE_COUNTS.append({
+            #             'pairBarcodeUp': barcodes[0],
+            #             'pairBarcodeDn': barcodes[1],
+
+            #             "barcode": barcode,
+            #             "contigId": vals[3],
+            #             "posFrom": int(vals[4]),
+            #             "posTo": int(vals[5]),
+            #             "time0": 0,
+            #             "counts": [0] * len(Fitness.CONDITIONS)
+            #         })
