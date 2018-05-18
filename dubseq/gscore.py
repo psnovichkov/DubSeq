@@ -174,19 +174,19 @@ def main():
 
     for index, item in enumerate(barseq_layout.all_items):
         print('Doing %s' % item.itnum)
-        ss = Fitness.getSample(index)
-        ts = Fitness.getRefTime0Sample()
-        fs = Fitness.buildFitnessScore(ss, ts)
+        ss = Fitness.get_sample(index)
+        ts = Fitness.get_tzero_sample()
+        fs = Fitness.build_fscores(ss, ts)
 
         fscore_fname = os.path.join(
             Context.output_dir, item.itnum + '.fscore.tsv')
         Fitness.save_fscores(fscore_fname, fs, ss, ts)
 
-        gs_mean = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_MEAN)
-        gs_nnls = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_C_NNLS)
-        gs_ridge = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_RIDGE)
-        gs_lasso = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_LASSO)
-        gs_enet = Fitness.buildGeneScores(fs, Fitness.SCORE_TYPE_ELASTIC_NET)
+        gs_mean = Fitness.build_gscores(fs, Fitness.SCORE_TYPE_MEAN)
+        gs_nnls = Fitness.build_gscores(fs, Fitness.SCORE_TYPE_C_NNLS)
+        gs_ridge = Fitness.build_gscores(fs, Fitness.SCORE_TYPE_RIDGE)
+        gs_lasso = Fitness.build_gscores(fs, Fitness.SCORE_TYPE_LASSO)
+        gs_enet = Fitness.build_gscores(fs, Fitness.SCORE_TYPE_ELASTIC_NET)
 
         gscore_fname = os.path.join(
             Context.output_dir, item.itnum + '.gscore.tsv')

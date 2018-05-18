@@ -112,14 +112,15 @@ def main():
 
     for index, item in enumerate(barseq_layout.all_items):
         print('Doing %s' % item.itnum)
-        ss = Fitness.getSample(index)
-        fs = Fitness.buildFitnessScore(ss, Fitness.getRefTime0Sample())
+        ss = Fitness.get_sample(index)
+        ts = Fitness.get_tzero_sample()
+        fs = Fitness.build_fscores(ss, ts)
 
-        score_fname = os.path.join(
+        fscore_fname = os.path.join(
             Context.output_dir, item.itnum + '.fscore.tsv')
 
-        print('\tsaving scores to %s' % score_fname)
-        Fitness.save_fscores(score_fname, fs)
+        print('\tsaving scores to %s' % fscore_fname)
+        Fitness.save_fscores(fscore_fname, fs, ss, ts)
 
     # # process file(s)
     # logging.info("Processing fastq files started")

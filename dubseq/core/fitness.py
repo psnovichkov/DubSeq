@@ -408,7 +408,7 @@ class Fitness:
         return indeces
 
     @staticmethod
-    def getSample(itIndex):
+    def get_sample(itIndex):
         sample = []
         for bIndex in Fitness.BARCODE_INDICES:
             row = Fitness.BARCODE_COUNTS[bIndex]
@@ -417,7 +417,7 @@ class Fitness:
         return sample
 
     @staticmethod
-    def getRefTime0Sample():
+    def get_tzero_sample():
         sample = []
         for bIndex in Fitness.BARCODE_INDICES:
             row = Fitness.BARCODE_COUNTS[bIndex]
@@ -1007,7 +1007,7 @@ class Fitness:
 
     # No needs to adjust by total...
     @staticmethod
-    def buildFitnessScore(sample, sampleT0):
+    def build_fscores(sample, sampleT0):
         scores = []
         stotal = sum(sample)
         stotalT0 = sum(sampleT0)
@@ -1121,22 +1121,22 @@ class Fitness:
         return (reg_f_indices, reg_g_indices, reg_f_scores, reg_fg_matrix)
 
     @staticmethod
-    def buildGeneScores(fscores, scoreType):
-        print('\t doing: ' + Fitness.SCORE_TYPE_NAMES[scoreType])
+    def build_gscores(fscores, score_type):
+        print('\t doing: ' + Fitness.SCORE_TYPE_NAMES[score_type])
         gscores = [0] * len(Fitness.GENES)
 
-        if Fitness.SPARSE_REGRESSION_MATRIX[scoreType]:
+        if Fitness.SPARSE_REGRESSION_MATRIX[score_type]:
             (reg_f_scores, reg_fg_matrix) = Fitness.genes_2_sparse_regression_matrix(fscores)
             sample_n = len(reg_f_scores)
             estimator = None
-            if scoreType == Fitness.SCORE_TYPE_RIDGE:
+            if score_type == Fitness.SCORE_TYPE_RIDGE:
                 alpha = Fitness.RIDGE_PARAM_ALPHA
                 estimator = Ridge(
                     alpha=alpha, fit_intercept=False, solver='lsqr')
-            elif scoreType == Fitness.SCORE_TYPE_LASSO:
+            elif score_type == Fitness.SCORE_TYPE_LASSO:
                 alpha = Fitness.LASSO_PARAM_ALPHA / sample_n / 2
                 estimator = Lasso(alpha=alpha, fit_intercept=False)
-            elif scoreType == Fitness.SCORE_TYPE_ELASTIC_NET:
+            elif score_type == Fitness.SCORE_TYPE_ELASTIC_NET:
                 alpha = Fitness.ELASTIC_NET_PARAM_ALPHA / sample_n / 2
                 l1_ratio = Fitness.ELASTIC_NET_PARAM_L1_RATIO
                 estimator = ElasticNet(
@@ -1155,35 +1155,19 @@ class Fitness:
                     Fitness.genes_2_deep_regression_matrix(
                         gene_indices, fscores)
 
-                # print('\t', reg_f_indices.shape, reg_g_indices.shape,
-                #       reg_f_scores.shape, reg_fg_matrix.shape)
-
                 if reg_g_indices.shape[0] == 0 and reg_f_indices.shape[0] == 0:
                     continue
 
                 scores = []
-                if scoreType == Fitness.SCORE_TYPE_MEAN:
-
-                    # for g_index in range(reg_fg_matrix.shape[1]):
-                    #     score = 0
-                    #     n = 0
-                    #     for b_index in range(reg_fg_matrix.shape[0]):
-                    #         if reg_fg_matrix[b_index, g_index] == 1:
-                    #             score += reg_f_scores[b_index]
-                    #             n += 1
-                    #     if n > 0:
-                    #         score /= n
-                    #     scores.append(score)
-
-                    # max(x,1) to avoid division by 0
+                if score_type == Fitness.SCORE_TYPE_MEAN:
                     f_counts = np.array([max(x, 1)
                                          for x in np.sum(reg_fg_matrix, axis=0)])
                     scores = np.dot(reg_f_scores, reg_fg_matrix) / f_counts
 
-                elif scoreType == Fitness.SCORE_TYPE_NNLS:
+                elif score_type == Fitness.SCORE_TYPE_NNLS:
                     x = nnls(reg_fg_matrix, reg_f_scores)
                     scores = x[0]
-                elif scoreType == Fitness.SCORE_TYPE_C_NNLS:
+                elif score_type == Fitness.SCORE_TYPE_C_NNLS:
                     x = nnls(reg_fg_matrix, reg_f_scores)
                     scores_direct = x[0]
 
@@ -1355,53 +1339,52 @@ class Fitness:
             Fitness.BARCODE_REPLICATES[bIndex] += 1
 
     @staticmethod
-    def buildNoisedGeneScores(nCycles, sample, scoreType, doBootstrapIndeces, doBootstrapReadCounts, doPoissonNoise, flNoiseT0):
+    def build_noised_gscores(n_cycles, sample, score_type, do_bootstrap_indices, do_bootstrap_read_counts, do_poisson_noise, fl_noise_t0):
 
-        geneScores = []
+        gene_scores = [] * len(Fitness.GENES)
 
         # init geneScores array
-        for i in range(len(Fitness.GENES)):
-            geneScores.append([0] * nCycles)
+        for i in range(gene_scores):
+            gene_scores[i] = [0] * n_cycles
 
-        for cycleIndex in range(nCycles):
-            if cycleIndex % 10 == 0:
-                print("\t", cycleIndex, ": ", end='', flush=True)
+        for cycle_index in range(n_cycles):
+            if cycle_index % 10 == 0:
+                print("\t", cycle_index, ": ", end='', flush=True)
             print('.', end='', flush=True)
-            if (cycleIndex + 1) % 10 == 0:
+            if (cycle_index + 1) % 10 == 0:
                 print('')
 
-            sampleStress = sample
-            sampleT0 = Fitness.getRefTime0Sample()
+            sample_stress = sample
+            sample_t0 = Fitness.get_tzero_sample()
 
-            # 1. bootstrap barcode indeces if needed
+            # bootstrap barcode indeces if needed
             Fitness.updateBARCODE_INDICES()
-            if doBootstrapIndeces:
+            if do_bootstrap_indices:
                 Fitness.bootstrapBARCODE_INDICES()
-                sampleT0 = Fitness.getRefTime0Sample()
+                sample_t0 = Fitness.get_tzero_sample()
 
-            # 2. bootstrap read counts if needed
-            if doBootstrapReadCounts:
-                sampleStress = Fitness.bootstrapSampleReadCounts(sampleStress)
-                if flNoiseT0:
-                    sampleT0 = Fitness.bootstrapSampleReadCounts(sampleT0)
+            # bootstrap read counts if needed
+            if do_bootstrap_read_counts:
+                sample_stress = Fitness.bootstrapSampleReadCounts(
+                    sample_stress)
+                if fl_noise_t0:
+                    sample_t0 = Fitness.bootstrapSampleReadCounts(sample_t0)
 
-            # 3. add Poisson noise if neede
-            if doPoissonNoise:
-                sampleStress = Fitness.buildPoissonNoisedSample(sampleStress)
-                if flNoiseT0:
-                    sampleT0 = Fitness.buildPoissonNoisedSample(sampleT0)
+            # add Poisson noise if needed
+            if do_poisson_noise:
+                sample_stress = Fitness.buildPoissonNoisedSample(sample_stress)
+                if fl_noise_t0:
+                    sample_t0 = Fitness.buildPoissonNoisedSample(sample_t0)
 
-            fscores = Fitness.buildFitnessScore(sampleStress, sampleT0)
-            gscores = Fitness.buildGeneScores(fscores, scoreType)
-            for gIndex, geneScore in enumerate(gscores):
-                geneScores[gIndex][cycleIndex] = geneScore
+            fscores = Fitness.build_fscores(sample_stress, sample_t0)
+            gscores = Fitness.build_gscores(fscores, score_type)
+            for g_index, gscore in enumerate(gscores):
+                gene_scores[g_index][cycle_index] = gscore
 
         # sort scores
-        for gs in geneScores:
+        for gs in gene_scores:
             gs.sort()
-
-        print('buildGrandNoisedGeneScores: Done!')
-        return geneScores
+        return gene_scores
 
 
 # @staticmethod
@@ -1410,9 +1393,9 @@ class Fitness:
 #     Fitness.updateBARCODE_INDICES()
 
 #     for index in range(0, len(Fitness.CONDITIONS)):
-#         ss = Fitness.getSample(index)
-#         fs = Fitness.buildFitnessScore(ss, Fitness.getRefTime0Sample())
-#         gs = Fitness.buildGeneScores(fs, scoreType)
+#         ss = Fitness.get_sample(index)
+#         fs = Fitness.build_fscores(ss, Fitness.get_tzero_sample())
+#         gs = Fitness.build_gscores(fs, scoreType)
 
 #         itNumber = Fitness.CONDITIONS_LIST[index * 3]
 #         fileName = Fitness.BARSEQ_DIR + \
@@ -1537,15 +1520,15 @@ class Fitness:
     # def doSample(sampleIndex, filePrefix, scoreType, doNoise=True):
     #     nCycles = 100
     #     Fitness.cleanGeneScores()
-    #     sample = Fitness.getSample(sampleIndex)
+    #     sample = Fitness.get_sample(sampleIndex)
 
-    #     fs = Fitness.buildFitnessScore(sample, Fitness.getRefTime0Sample())
-    #     gs = Fitness.buildGeneScores(fs, scoreType)
+    #     fs = Fitness.build_fscores(sample, Fitness.get_tzero_sample())
+    #     gs = Fitness.build_gscores(fs, scoreType)
 
     #     if doNoise:
-    #         gscoresBI = Fitness.buildNoisedGeneScores(nCycles, sample,  doBootstrapIndeces=True,
+    #         gscoresBI = Fitness.build_noised_gscores(nCycles, sample,  doBootstrapIndeces=True,
     #                                                   doBootstrapReadCounts=False, doPoissonNoise=False, flNoiseT0=False)
-    #         gscoresPN = Fitness.buildNoisedGeneScores(nCycles, sample,  doBootstrapIndeces=False,
+    #         gscoresPN = Fitness.build_noised_gscores(nCycles, sample,  doBootstrapIndeces=False,
     #                                                   doBootstrapReadCounts=False, doPoissonNoise=True, flNoiseT0=False)
     #     else:
     #         gscoresBI = [[0] * nCycles] * len(gs)
