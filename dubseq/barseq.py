@@ -312,9 +312,6 @@ def extract_barcodes(fastq_fname, barcode_stats, fastq_file_stat):
     finally:
         barcodes_fp.close()
 
-    # Log the file stat
-    logging.info("%s\t%s" % (fastq_fname, str(fastq_file_stat)))
-
 
 if __name__ == '__main__':
     args = parse_args()
