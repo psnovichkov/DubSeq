@@ -294,7 +294,7 @@ class Fitness:
     #######################
 
     @staticmethod
-    def init(barseq_layout, barseq_dir, bpag_fname, genes_gff_fname=None):
+    def init(barseq_layout, barseq_dir, bpag_fname, genes_gff_fname=None, gene_pairs=False):
         Fitness.initConditions(barseq_layout, barseq_dir)
 
         t0Indeces = Fitness.getTimeZeroIndeces()
@@ -310,6 +310,8 @@ class Fitness:
 
         if genes_gff_fname:
             Fitness.loadGenes(genes_gff_fname)
+            if gene_pairs:
+                Fitness.add_gene_pairs()
             Fitness.associateGenesWithBarcodes()
             # cleanGENES()
             Fitness.buildGENOME_SEGMENTS()
@@ -586,6 +588,32 @@ class Fitness:
                 delCount += 1
 
         Fitness.updateBARCODE_INDICES()
+
+    @staticmethod
+    def add_gene_pairs():
+        gene_pairs = []
+        for i in range(len(Fitness.GENES) - 1):
+            g1 = Fitness.GENES[i]
+            g2 = Fitness.GENES[i + 1]
+            if g1['contigId'] == g2['contigId']:
+                gene_pair = {
+                    'contigId': g1['contigId'],
+                    'geneType': '%s-%s' % (g1['geneType'], g2['geneType']),
+                    'posFrom': min(g1['posFrom'], g2['posFrom']),
+                    'posTo': max(g1['posTo'], g2['posTo']),
+                    'strand': '%s-%s' % (g1['strand'], g2['strand']),
+                    'name': '%s-%s' % (g1['name'], g2['name']),
+                    'product': '%s;%s' % (g1['product'], g2['product']),
+                    'locusTag': '%s-%s' % (g1['locusTag'], g2['locusTag']),
+                    'note': '%s;%s' % (g1['note'], g2['note']),
+                    'description': '%s;%s' % (g1['description'], g2['description']),
+                    'index': 0,
+                    'barcodeIndeces': []
+                }
+                gene_pairs.append(gene_pair)
+        for gene_pair in gene_pairs:
+            Fitness.GENES.append(gene_pair)
+        Fitness.GENES.sort(key=lambda x: x['posFrom'], reverse=False)
 
     @staticmethod
     def loadGenes(genes_gff_fname):
