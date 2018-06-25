@@ -10,6 +10,9 @@ class Primer:
         self.__sequence = sequence
         self.__pos = pos
 
+    def __str__(self):
+        return '[%s] %s' % (self.__pos, self.__sequence)
+
     @property
     def sequence(self):
         return self.__sequence
@@ -44,6 +47,9 @@ class BarcodeTag:
         self.__primer1 = Primer(primer_seq1, primer_pos1)
         self.__primer2 = Primer(primer_seq2, primer_pos2)
 
+    def __str__(self):
+        return 'primer1: %s; primer2: %s' % (self.__primer1, self.__primer2)
+
     @property
     def primer1(self):
         return self.__primer1
@@ -53,9 +59,8 @@ class BarcodeTag:
         return self.__primer2
 
     def check_primers(self, sequence, pos_shift, require_entire_primer2=True):
-        return self.primer1.check_primer(sequence, pos_shift) and \
-            self.primer2.check_primer(
-                sequence, pos_shift, require_entire_primer2)
+        return self.primer1.check_primer(sequence, pos_shift) and self.primer2.check_primer(
+            sequence, pos_shift, require_entire_primer2)
 
     @property
     def tag_start(self):

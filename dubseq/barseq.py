@@ -12,13 +12,21 @@ class Context:
     BARCODE_STAT_FNAME_SUFFIX = '.bstat.tsv'
     LOG_FILE_NAME = 'barseq.log'
 
-    output_dir = None
-
-    barcode_tag = None
     fastq_source = None
+    output_dir = None
+    barcode_tag = None
     primer_position_shifts = None
     min_barcode_quality = None
     sim_ratio_threshold = None
+
+    @staticmethod
+    def to_string(delimiter=' '):
+        props = ['fastq_source', 'output_dir', 'barcode_tag',
+                 'primer_position_shifts', 'min_barcode_quality',
+                 'sim_ratio_threshold']
+
+        return delimiter.join(['%s = %s' % (prop, Context.__dict__[prop])
+                               for prop in props])
 
     @staticmethod
     def build_context(args):
@@ -212,9 +220,9 @@ def main():
 
 def init_logger():
     with open(Context.log_fname(), 'w') as f:
-        f.write("Parameters:\n")
-        for arg, value in vars(args).items():
-            f.write("\t%s=%s\n" % (arg, value))
+        f.write('Command line: %s\n' % ' '.join(sys.argv))
+
+        f.write("Parameters: \n\t%s \n" % Context.to_string('\n\t'))
         f.write("Report columns:\n")
         f.write("\t%s\n" % FastqFileStat.header(sep='\n\t'))
         f.write("\n\n")
@@ -279,7 +287,7 @@ def extract_barcodes(fastq_fname, barcode_stats, fastq_file_stat):
 
                 # try to extract a barcode from the sequence
                 barcode = Context.barcode_tag.extract_barcode(
-                    record, Context.primer_position_shifts)
+                    record, Context.primer_position_shifts, require_entire_primer2=False)
 
                 if barcode:
                     # count the reads with extracted barcodes
