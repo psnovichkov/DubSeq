@@ -14,7 +14,7 @@ class Context:
     BARSEQ_LAYOUT_OUT_FILE_NAME = 'barseq_layout.tsv'
     GSCORE_BASE_FILE_NAME = 'gscore_base.tsv'
 
-    LOG_FILE_NAME = 'gscore.log'
+    LOG_FILE_NAME = 'bstat.log'
 
     barseq_layout_fname = None
     barseq_bstat_dir = None
