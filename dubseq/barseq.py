@@ -22,13 +22,34 @@ class Context:
 
     @staticmethod
     def build_context(args):
+
+        pre_seaquence = 'CAGCGTACG'
+        post_sequence = 'AGAGACC'
+        pre_pos = 14
+        position_shifts = [-2, -1, 0, 1, 2]
+
+        if args.n25:
+            # 11:14
+            pre_pos = 11
+            position_shifts = [0, 1, 2, 3]
+        elif args.bs3:
+            # 18:21
+            pre_pos = 18
+            position_shifts = [0, 1, 2, 3]
+        else:
+            pre_pos = args.pos1
+            pre_seaquence = args.sequence1
+            post_sequence = args.sequence2
+            position_shifts = args.shift
+
         Context.barcode_tag = BarcodeTag(
-            args.sequence1, args.pos1,
-            args.sequence2, args.pos2)
+            pre_seaquence, pre_pos,
+            post_sequence, pre_pos + len(pre_seaquence) + 20)
+
+        Context.primer_position_shifts = position_shifts
 
         Context.fastq_source = args.input
         Context.output_dir = args.output
-        Context.primer_position_shifts = args.shift
         Context.min_barcode_quality = args.min_barcode_quality
         Context.sim_ratio_threshold = args.sim_ratio_threshold
 
@@ -62,6 +83,12 @@ def parse_args():
         of primers. The --primer-position-shifts paramter allows flexibility in the coordiates
         of primers.
         
+        There are two predefined modes for newer multiplexing designs:
+        1. n25 mode (--n25) means 11:14 nt before the pre-sequence, corresponding to a read with
+	            2:5 Ns, GTCGACCTGCAGCGTACG, N20, AGAGACC
+        2. bs3 mode (--bs3) eans 1:4 + 6 + 11 = 18:21 nt before the pre-sequence, corresponding to
+	            1:4 Ns, index2, GTCGACCTGCAGCGTACG, N20, AGAGACC
+
         All extracted barcodes are filtered by the quality of their sequences controlled
         by --min-barcode-quality parameter. 
         
@@ -108,6 +135,18 @@ def parse_args():
                         type=int
                         )
 
+    parser.add_argument('--n25',
+                        dest='n25',
+                        help=''' means 11:14 nt before the pre-sequence, corresponding to a read with
+	                            2:5 Ns, GTCGACCTGCAGCGTACG, N20, AGAGACC ''',
+                        action='store_true')
+
+    parser.add_argument('--bs3',
+                        dest='bs3',
+                        help=''' means 1:4 + 6 + 11 = 18:21 nt before the pre-sequence, corresponding to
+	                        1:4 Ns, index2, GTCGACCTGCAGCGTACG, N20, AGAGACC ''',
+                        action='store_true')
+
     parser.add_argument('--primer1-pos',
                         dest='pos1',
                         help='Position of primer1',
@@ -120,13 +159,6 @@ def parse_args():
                         help='Sequence of primer1',
                         default='CAGCGTACG',
                         type=str
-                        )
-
-    parser.add_argument('--primer2-pos',
-                        dest='pos2',
-                        help='Position of primer2',
-                        default=43,
-                        type=int
                         )
 
     parser.add_argument('--primer2-sequence',
