@@ -27,6 +27,7 @@ class Context:
     lasso_alpha = None
     enet_alpha = None
     enet_l1_ratio = None
+    gene_pairs = False
 
     @staticmethod
     def build_context(args):
@@ -40,6 +41,8 @@ class Context:
         Context.lasso_alpha = args.lasso_alpha
         Context.enet_alpha = args.enet_alpha
         Context.enet_l1_ratio = args.enet_l1_ratio
+        if args.gene_pairs:
+            Context.gene_pairs = True
 
     @staticmethod
     def gscore_base_fname():
@@ -62,7 +65,19 @@ def parse_args():
 
     parser = argparse.ArgumentParser(
         description='''
-        The gscore program ...
+        The gscore program esimates the fitness score of genes using several methods. 
+        
+        First, the fintess scores of framgetms are calulcated folloing the approach 
+        implemnted in the fscore module of the DubSeq package (see the help for the fscore 
+        program).
+
+        For all genes (both protein coding genes and rnas) listed in the gff file 
+        (--genes-gff-fname parameter), gene fintess score is calculated using 5 approaches: 
+        1. Mean score - the score of each gene is calcalted as an average of fitness 
+        2. CNNLS score (non-negative least squares used to caluclate noth positive and negative scores)
+        3. Ridge score
+        4. Lasso score
+        5. Elastic Net score
 
 
         ''',
@@ -145,6 +160,10 @@ def parse_args():
                         default=0.7,
                         type=float
                         )
+    parser.add_argument('--gene_pairs',
+                        dest='gene_pairs',
+                        help='''If indicated, the gene paris will be added to the model as variables''',
+                        action='store_true')
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -168,7 +187,7 @@ def main():
     barseq_layout.save(Context.barseq_layout_out_fname())
 
     Fitness.init(barseq_layout, Context.barseq_bstat_dir,
-                 Context.bpag_fname, Context.genes_gff_fname)
+                 Context.bpag_fname, Context.genes_gff_fname, Context.gene_pairs)
     Fitness.save_fscore_base(Context.fscore_base_fname())
     Fitness.save_gscore_base(Context.gscore_base_fname())
 
