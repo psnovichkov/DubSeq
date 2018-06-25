@@ -22,9 +22,20 @@ class Primer:
     def size(self):
         return len(self.__sequence)
 
-    def check_primer(self, sequence, pos_shift):
+    def check_primer(self, sequence, pos_shift, require_entire_primer=True):
         pos_from = self.__pos + pos_shift
         pos_to = pos_from + self.size
+
+        seq_len = len(sequence)
+
+        if pos_from >= seq_len:
+            return False
+
+        if pos_to > seq_len and not require_entire_primer:
+            primer_to = len(self.sequence) - (pos_to - seq_len)
+            pos_to = seq_len
+            return self.sequence[0:primer_to] == sequence[pos_from: pos_to]
+
         return self.sequence == sequence[pos_from: pos_to]
 
 
@@ -41,9 +52,10 @@ class BarcodeTag:
     def primer2(self):
         return self.__primer2
 
-    def check_primers(self, sequence, pos_shift):
+    def check_primers(self, sequence, pos_shift, require_entire_primer2=True):
         return self.primer1.check_primer(sequence, pos_shift) and \
-            self.primer2.check_primer(sequence, pos_shift)
+            self.primer2.check_primer(
+                sequence, pos_shift, require_entire_primer2)
 
     @property
     def tag_start(self):
@@ -53,10 +65,10 @@ class BarcodeTag:
     def tag_end(self):
         return self.primer2.pos + self.primer2.size
 
-    def extract_barcode(self, fastq_record, pos_shifts):
+    def extract_barcode(self, fastq_record, pos_shifts, require_entire_primer2=True):
         barcode = None
         for pos_shift in pos_shifts:
-            if self.check_primers(fastq_record.sequence, pos_shift):
+            if self.check_primers(fastq_record.sequence, pos_shift, require_entire_primer2):
                 barcode = Barcode()
                 barcode(fastq_record, self, pos_shift)
                 break

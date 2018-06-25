@@ -515,8 +515,10 @@ def process_fastq_file(fastq_fname, tag, seq_id_generator, fasta_fp):
                 fastq_file_stat.total_reads_inc()
 
                 # try to extract a barcode from the sequence
+                # we will not requre the primer2 being entirely present in the
+                # read, since the read is short...
                 barcode = tag.extract_barcode(
-                    record, Context.primer_position_shifts)
+                    record, Context.primer_position_shifts, require_entire_primer2=False)
 
                 if barcode:
                     # count the reads with extracted barcodes
