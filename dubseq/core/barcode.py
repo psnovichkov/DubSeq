@@ -42,7 +42,8 @@ class BarcodeTag:
         return self.__primer2
 
     def check_primers(self, sequence, pos_shift):
-        return self.primer1.check_primer(sequence, pos_shift) and self.primer2.check_primer(sequence, pos_shift)
+        return self.primer1.check_primer(sequence, pos_shift) and \
+            self.primer2.check_primer(sequence, pos_shift)
 
     @property
     def tag_start(self):
