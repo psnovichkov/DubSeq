@@ -1,7 +1,9 @@
+import re
 import os
 import sys
 import argparse
 import logging
+import pandas as pd
 from .core.barcode import Barcode, BarcodeTag, BarcodeStat
 from .core.fastq import FastqReader, FastqRecord, FastqFileStat
 from .core import util
@@ -11,6 +13,7 @@ class Context:
     BARCODES_FNAME_SUFFIX = '.barcodes'
     BARCODE_STAT_FNAME_SUFFIX = '.bstat.tsv'
     LOG_FILE_NAME = 'barseq.log'
+    ITNUM_PATTERN = re.compile('_(IT\d+)_')
 
     fastq_source = None
     output_dir = None
@@ -18,12 +21,16 @@ class Context:
     primer_position_shifts = None
     min_barcode_quality = None
     sim_ratio_threshold = None
+    index2_file_name = None
+    mode = None
+
+    index2_df = None
 
     @staticmethod
     def to_string(delimiter=' '):
-        props = ['fastq_source', 'output_dir', 'barcode_tag',
+        props = ['mode', 'fastq_source', 'output_dir', 'barcode_tag',
                  'primer_position_shifts', 'min_barcode_quality',
-                 'sim_ratio_threshold']
+                 'sim_ratio_threshold', 'index2_file_name']
 
         return delimiter.join(['%s = %s' % (prop, Context.__dict__[prop])
                                for prop in props])
@@ -35,21 +42,25 @@ class Context:
         post_sequence = 'AGAGACC'
         pre_pos = 14
         position_shifts = [-2, -1, 0, 1, 2]
+        mode = 'Default'
 
         if args.n25:
             # 11:14
             pre_pos = 11
             position_shifts = [0, 1, 2, 3]
+            mode = 'n25'
         elif args.bs3:
-            # 18:21
-            pre_pos = 18
+            # 16:19
+            pre_pos = 16
             position_shifts = [0, 1, 2, 3]
+            mode = 'bs3'
         else:
             pre_pos = args.pos1
             pre_seaquence = args.sequence1
             post_sequence = args.sequence2
             position_shifts = args.shift
 
+        Context.mode = mode
         Context.barcode_tag = BarcodeTag(
             pre_seaquence, pre_pos,
             post_sequence, pre_pos + len(pre_seaquence) + 20)
@@ -60,6 +71,10 @@ class Context:
         Context.output_dir = args.output
         Context.min_barcode_quality = args.min_barcode_quality
         Context.sim_ratio_threshold = args.sim_ratio_threshold
+
+        if mode == 'bs3':
+            Context.index2_file_name = args.index2_file_name
+            Context.index2_df = pd.read_csv(Context.index2_file_name, sep='\t')
 
     @staticmethod
     def barcodes_fname(fastq_file_name):
@@ -151,9 +166,16 @@ def parse_args():
 
     parser.add_argument('--bs3',
                         dest='bs3',
-                        help=''' means 1:4 + 6 + 11 = 18:21 nt before the pre-sequence, corresponding to
-	                        1:4 Ns, index2, GTCGACCTGCAGCGTACG, N20, AGAGACC ''',
+                        help=''' means 1:4 + 6 + 9 = 16:19 nt before the pre-sequence, corresponding to
+	                        1:4 Ns, index2, GTCGACCTGCAGCGTACG, N20, AGAGACC 
+                            The file describing index2 sequences should be specified
+                            ''',
                         action='store_true')
+
+    parser.add_argument('--index2_file_name',
+                        dest='index2_file_name',
+                        help='Barseq layout file with index2 sequneces',
+                        type=str)
 
     parser.add_argument('--primer1-pos',
                         dest='pos1',
@@ -263,6 +285,19 @@ def process_fastq_file(fastq_fname):
     logging.info("%s\t%s" % (fastq_fname, str(fastq_file_stat)))
 
 
+def get_file_itnum(fastq_fname):
+    return Context.ITNUM_PATTERN.findall(fastq_fname)[0]
+
+
+def check_index2(itnum, fastq_record):
+    df = Context.index2_df
+    df = df[df.index_name == itnum]
+    index2_seq = df.iloc[0].index2
+    upstream_sequence = fastq_record.sequence[:4 + len(index2_seq)]
+
+    return index2_seq in upstream_sequence
+
+
 def extract_barcodes(fastq_fname, barcode_stats, fastq_file_stat):
     '''
         It will:
@@ -271,9 +306,11 @@ def extract_barcodes(fastq_fname, barcode_stats, fastq_file_stat):
         3. store the high quality barcode in barcode_stats for the downstream analysis
     '''
 
+    itnum = get_file_itnum(fastq_fname)
+
     # open a file to accumulate extracted barcodes
     barcodes_fp = open(Context.barcodes_fname(fastq_fname), 'w')
-    barcodes_fp.write("seq_id\t%s\n" % Barcode.header())
+    barcodes_fp.write("seq_id\t%s\tindex2\n" % Barcode.header())
 
     try:
         # open fastq file reader
@@ -289,15 +326,20 @@ def extract_barcodes(fastq_fname, barcode_stats, fastq_file_stat):
                 barcode = Context.barcode_tag.extract_barcode(
                     record, Context.primer_position_shifts, require_entire_primer2=False)
 
+                has_index2 = True
                 if barcode:
                     # count the reads with extracted barcodes
                     fastq_file_stat.barcode_extracted_reads_inc()
 
+                    if Context.mode == 'bs3':
+                        has_index2 = check_index2(itnum, record)
+
                     # store the extracted barcode
                     record_id = record.id.split(' ')[0]
-                    barcodes_fp.write("%s\t%s\n" % (record_id, barcode))
+                    barcodes_fp.write("%s\t%s\t%s\n" %
+                                      (record_id, barcode, has_index2))
 
-                if barcode and barcode.min_quality >= Context.min_barcode_quality:
+                if barcode and barcode.min_quality >= Context.min_barcode_quality and has_index2:
 
                     # register barcode in the barcode_stats
                     barcode_key = barcode.sequence
