@@ -289,12 +289,8 @@ def get_file_itnum(fastq_fname):
     return Context.ITNUM_PATTERN.findall(fastq_fname)[0]
 
 
-def check_index2(itnum, fastq_record):
-    df = Context.index2_df
-    df = df[df.index_name == itnum]
-    index2_seq = df.iloc[0].index2
+def check_index2(itnum, fastq_record, index2_seq):
     upstream_sequence = fastq_record.sequence[:4 + len(index2_seq)]
-
     return index2_seq in upstream_sequence
 
 
@@ -306,7 +302,11 @@ def extract_barcodes(fastq_fname, barcode_stats, fastq_file_stat):
         3. store the high quality barcode in barcode_stats for the downstream analysis
     '''
 
-    itnum = get_file_itnum(fastq_fname)
+    if Context.mode == 'bs3':
+        itnum = get_file_itnum(fastq_fname)
+        df = Context.index2_df
+        df = df[df.index_name == itnum]
+        index2_seq = df.iloc[0].index2
 
     # open a file to accumulate extracted barcodes
     barcodes_fp = open(Context.barcodes_fname(fastq_fname), 'w')
@@ -332,7 +332,7 @@ def extract_barcodes(fastq_fname, barcode_stats, fastq_file_stat):
                     fastq_file_stat.barcode_extracted_reads_inc()
 
                     if Context.mode == 'bs3':
-                        has_index2 = check_index2(itnum, record)
+                        has_index2 = check_index2(itnum, record, index2_seq)
 
                     # store the extracted barcode
                     record_id = record.id.split(' ')[0]
