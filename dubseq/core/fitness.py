@@ -12,6 +12,7 @@ from limix.stats import qvalues
 from sklearn.linear_model import ElasticNet
 from sklearn.linear_model import Lasso
 from sklearn.linear_model import Ridge
+from .util import print_prefix
 
 
 class BarseqLayoutItem:
@@ -300,7 +301,7 @@ class Fitness:
         t0Indeces = Fitness.getTimeZeroIndeces()
 
         # Load data
-        print("loadBPAG:...",  end='', flush=True)
+        print_prefix("loadBPAG:...")
         Fitness.loadBPAG(bpag_fname)
         print('Done!')
 
@@ -1097,8 +1098,8 @@ class Fitness:
 
         for cycle_index in range(n_cycles):
             if cycle_index % 10 == 0:
-                print("\t", cycle_index, ": ", end='', flush=True)
-            print('.', end='', flush=True)
+                print_prefix('\t%s: ' % cycle_index)
+            print_prefix('.')
             if (cycle_index + 1) % 10 == 0:
                 print('')
 

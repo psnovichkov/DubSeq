@@ -11,6 +11,12 @@ __NUCL_INDEX[ord('G')] = 2
 __NUCL_INDEX[ord('T')] = 3
 
 
+if sys.version_info[0] < 3:
+    def print_prefix(x): return print(x,)
+else:
+    def print_prefix(x): return print(x, end='', flush=True)
+
+
 def reverse_complement(sequence):
     rc_sequence = ''
     for ch in sequence:
