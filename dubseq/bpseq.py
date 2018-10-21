@@ -318,7 +318,13 @@ def extract_barcodes(fastq_fname, barcodes12, up_barcodes, dn_barcodes, fastq_fi
             # Process each record from the fastq file
             reader = FastqReader(fastq_fname)
             record = FastqRecord()
+            i = 0
             while reader.next_record(record):
+                i += 1
+                if i % 100000 == 0:
+                    print('.', end='', flush=True)
+                if i % 1000000 == 0:
+                    print(i)
 
                 fastq_file_stat.total_reads_inc()
 
@@ -375,6 +381,7 @@ def extract_barcodes(fastq_fname, barcodes12, up_barcodes, dn_barcodes, fastq_fi
                         dn_stat.reads_count_inc()
 
         finally:
+            print('')
             reader.close()
 
 
@@ -395,7 +402,15 @@ def save_barcode_pair_stat(barcodes12, up_barcodes, dn_barcodes):
             PairedBarcodeStat.header(prefix='dn_')
         ))
 
+        i = 0
+        count = len(barcodes12)
         for bpair, bpair_reads_count in barcodes12.items():
+            i += 1
+            if i % 100000 == 0:
+                print('.', end='', flush=True)
+            if i % 1000000 == 0:
+                print('%s of %s' % (i, count))
+
             up_barcode, dn_barcode = bpair.split(Context.BARCODE_SEPARATOR)
             up_stat = up_barcodes[up_barcode]
             dn_stat = dn_barcodes[dn_barcode]
